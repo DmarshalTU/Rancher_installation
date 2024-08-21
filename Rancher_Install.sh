@@ -51,7 +51,6 @@ then
     else
         echo -e "${red}Fetching Cert-manager helm chart${clear}"
         helm repo add jetstack https://charts.jetstack.io --force-update
-        helm pull jetstack/cert-manager -d Artifacts/
     fi
     if [ -e Artifacts/rancher-*.tgz ] || [ -d Artifacts/rancher/ ] # looking for either a zipped chart or an unzipped folder
     then
@@ -59,7 +58,6 @@ then
     else
         echo -e "${green}Fetching Rancher helm chart${clear}"
         helm repo add rancher-stable https://releases.rancher.com/server-charts/stable --force-update
-        helm pull rancher-stable/rancher -d Artifacts/
     fi
 fi
 
@@ -209,7 +207,7 @@ if [ -d Artifacts/cert-manager ]
 then
     helm install cert-manager Artifacts/cert-manager
 else
-    helm install cert-manager --namespace cert-manager --create-namespace --set crds.enabled=true
+    helm install cert-manager jetstack/cert-manager --namespace cert-manager --create-namespace --set crds.enabled=true 
 fi
 
 ### Install rancher ###
@@ -219,7 +217,7 @@ then
 else
     echo -e "${green}Please enter the FQDN for the rancher manager:${clear}"
     read -r FQDN
-    helm install rancher --namespace cattle-system --create-namespace --set bootstrapPassword=admin --set hostname=$FQDN
+    helm install rancher --namespace cattle-system rancher-stable/rancher --create-namespace --set bootstrapPassword=admin --set hostname=$FQDN
 fi
 echo " "
 echo -e "${green}Installation complete!${clear}"
