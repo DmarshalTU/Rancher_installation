@@ -1,5 +1,5 @@
 #! /bin/bash
-RKE2_VERSION="v1.30.3+rke2r1"
+RKE2_VERSION="v1.28.12+rke2r1"
 RKE2_URL="https://github.com/rancher/rke2/releases/download"
 RKE2_FILES=( "rke2.linux-amd64.tar.gz" "sha256sum-amd64.txt" "rke2-images.linux-amd64.tar.gz" )
 OFFLINE_INSTLLATION="false"
@@ -62,16 +62,16 @@ then
 fi
 
 ### Check all artifacts exist and helm is installed ###
-if [ ! -e Artifacts/rancher-*.tgz ] && [ ! -d Artifacts/rancher/ ]
-then
-    echo -e "${red}Rancher chart files are missing! (no folder Artifacts/rancher/ or rancher-*.tgz)${clear}"
-    exit 1;
-fi
-if [ ! -e Artifacts/cert-manager-*.tgz ] && [ ! -d Artifacts/cert-manager/ ]
-then
-    echo -e "${red}Cert-manager chart files are missing! (no folder Artifacts/cert-manager/ or cert-manager-*.tgz)${clear}"
-    exit 1;
-fi
+# if [ ! -e Artifacts/rancher-*.tgz ] && [ ! -d Artifacts/rancher/ ]
+# then
+#     echo -e "${red}Rancher chart files are missing! (no folder Artifacts/rancher/ or rancher-*.tgz)${clear}"
+#     exit 1;
+# fi
+# if [ ! -e Artifacts/cert-manager-*.tgz ] && [ ! -d Artifacts/cert-manager/ ]
+# then
+#     echo -e "${red}Cert-manager chart files are missing! (no folder Artifacts/cert-manager/ or cert-manager-*.tgz)${clear}"
+#     exit 1;
+# fi
 if ! command -v helm &>/dev/null
 then
     echo -e "${red}Helm missing on machine${clear}"
