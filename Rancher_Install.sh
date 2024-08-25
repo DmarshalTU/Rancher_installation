@@ -49,7 +49,7 @@ then
     then
         echo -e "${green}Cert-manager Chart found.${clear}"
     else
-        echo -e "${red}Fetching Cert-manager helm chart${clear}"
+        echo -e "${green}Fetching Cert-manager helm chart${clear}"
         helm repo add jetstack https://charts.jetstack.io --force-update
     fi
     if [ -e Artifacts/rancher-*.tgz ] || [ -d Artifacts/rancher/ ] # looking for either a zipped chart or an unzipped folder
@@ -89,7 +89,7 @@ done
 ### Install RKE2 ###
 mkdir -p /etc/rancher/rke2
 mkdir -p /var/lib/rancher/rke2/agent/images/
-cp Artifacts/rke2-images.linux-amd64.tar.gz /var/lib/rancher/rke2/agent/images/
+# cp Artifacts/rke2-images.linux-amd64.tar.gz /var/lib/rancher/rke2/agent/images/
 if [ -e /etc/rancher/rke2/config.yaml ]
 then
     echo -e "${green}Found previous config file. Delete it?${clear} (y/n)"
@@ -197,6 +197,7 @@ echo -e "${green}Creating directory for configuration file and copying to locati
 mkdir -p /home/$SUDO_USER/.kube/
 ln -s /etc/rancher/rke2/rke2.yaml /home/$SUDO_USER/.kube/config
 chmod +r /home/$SUDO_USER/.kube/config
+export KUBECONFIG=/home/$SUDO_USER/.kube/config
 echo " "
 echo -e "${green}RKE2 installed!${clear}"
 
