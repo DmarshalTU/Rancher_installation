@@ -2,42 +2,97 @@
 RKE2_VERSION="v1.28.12+rke2r1"
 RKE2_URL="https://github.com/rancher/rke2/releases/download"
 RKE2_FILES=( "rke2.linux-amd64.tar.gz" "sha256sum-amd64.txt" "rke2-images.linux-amd64.tar.gz" )
-OFFLINE_INSTLLATION="false"
+OFFLINE_INSTALLATION="false"
+ARTIFACTS_DIR="./Artifacts"
 configSet=0
 KUBECTL_RETRIES=12
 green='\033[0;32m'
 red='\033[0;31m'
 clear='\033[0m'
 
-### Check all artifacts exist and helm is installed ###
-# if [ ! -e Artifacts/rancher-*.tgz ] && [ ! -d Artifacts/rancher/ ]
-# then
-#     echo -e "${red}Rancher chart files are missing! (no folder Artifacts/rancher/ or rancher-*.tgz)${clear}"
-#     exit 1;
-# fi
-# if [ ! -e Artifacts/cert-manager-*.tgz ] && [ ! -d Artifacts/cert-manager/ ]
-# then
-#     echo -e "${red}Cert-manager chart files are missing! (no folder Artifacts/cert-manager/ or cert-manager-*.tgz)${clear}"
-#     exit 1;
-# fi
 
-       
+### Handle flags ###
+function flags () {
+    while [[ $# -gt 0 ]]
+    do
+        echo handeling $1
+        case $1 in
+            -h | --help) 
+                help
+                exit 0
+                ;;
+            -v | --version| -v=* | --version=*)
+                if [[ "$1" == *=* ]]; then
+                    # Case where version is passed like -v=1.2.3 or --version=1.2.3
+                    RKE2_VERSION="${1#*=}"
+                elif [[ -n "$2" && "$2" != -* ]]; 
+                then
+                    # Case where version is passed like -v 1.2.3 or --version 1.2.3
+                    RKE2_VERSION="$2"
+                    shift  # Shift again to skip the actual version value
+                else
+                    echo "The given RKE2 version is invalid."
+                    help
+                    exit 1
+                fi
+                ;;
+            -a | --artifacts | -a=* | --artifacts=*)
+                if [[ "$1" == *=* ]]; 
+                then
+                    ARTIFACTS_DIR="${1#*=}"
+                elif [[ -n "$2" && "$2" != -* ]]; then
+                    ARTIFACTS_DIR="${2%/}"  # Remove trailing slashes
+                    shift # Shift again to skip the actual directory value
+                else
+                    echo "The given Artifacts directory location is invalid."
+                    help
+                    exit 1
+                fi
+                
+                # Validate artifact directory path syntax
+                if [[ ! "$ARTIFACTS_DIR" =~ ^[a-zA-Z0-9._/~/-]+$ ]]; then
+                    echo "The given Artifacts directory path contains invalid characters."
+                    help
+                    exit 1
+                fi
+                ;;
+            --offline)
+                OFFLINE_INSTALLATION="true"
+                ;;
+            *)
+                echo "Invalid option: $1" >&2
+                help
+                exit 1
+                ;;
+        esac
+        shift
+    done
+}       
+### Help function ###
+function help () {
+    echo "Usage: $0 [OPTIONS]"
+    echo "Options:"
+    echo "-h, --help      Display this help message"
+    echo "-v, --version   Set rke2 version (only used in online mode)"
+    echo "-a, --artifacts Set the 'Artifacts' directory location"
+    echo "--offline       Set the script to run in offline mode"
+}
 
 ### Install RKE2 ###
 function install_rke2 () {
     #download files
-    if [ "$OFFLINE_INSTLLATION"  == "false" ]
+    if [ "$OFFLINE_INSTALLATION"  == "false" ]
     then
-        if [ ! -e Artifacts ]
+        if [ ! -d "$ARTIFACTS_DIR" ]
         then
-            mkdir Artifacts
+            mkdir $ARTIFACTS_DIR
         fi
 
         for file in "${RKE2_FILES[@]}"
         do
             if [ ! -e "Artifacts/$file" ] # Do not download if file already exists
             then
-                curl -Lo "Artifacts/$file ${RKE2_URL}/${RKE2_VERSION}/$file"
+                curl -L --progress-bar -o "Artifacts/$file" "${RKE2_URL}/${RKE2_VERSION}/$file"
                 if [ $? -ne 0 ] # catch error
                 then
                     echo -e "${red}Download of $file failed!${clear}"
@@ -143,7 +198,7 @@ function install_rke2 () {
 
     echo " "
     echo -e "${green}Running and installing${clear}"
-    INSTALL_RKE2_ARTIFACT_PATH=Artifacts sh rke2_install_script.sh --tls-san $(echo ${tls[@]} | sed 's/ /,/g')
+    INSTALL_RKE2_ARTIFACT_PATH=$ARTIFACTS_DIR sh rke2_install_script.sh --tls-san $(echo ${tls[@]} | sed 's/ /,/g')
     if [ $? -ne 0 ]
     then 
         echo -e "${red}rke2 installation failed!${clear}"
@@ -190,7 +245,7 @@ function install_rke2 () {
 ### Install cert-manager ###
 function install_cert_manager () {
     #download files
-    if [ "$OFFLINE_INSTLLATION"  == "false" ]
+    if [ "$OFFLINE_INSTALLATION"  == "false" ]
     then
         if ! command -v helm &>/dev/null
         then
@@ -202,7 +257,7 @@ function install_cert_manager () {
                 exit 1
             fi
         fi
-        if [ -e Artifacts/cert-manager-*.tgz ] || [ -d Artifacts/cert-manager ] # looking for either a zipped chart or an unzipped folder
+        if [ -e $ARTIFACTS_DIR/cert-manager-*.tgz ] || [ -d $ARTIFACTS_DIR/cert-manager ] # looking for either a zipped chart or an unzipped folder
         then
             echo -e "${green}Cert-manager Chart found.${clear}"
         else
@@ -219,9 +274,9 @@ function install_cert_manager () {
     #install cert-manager
     echo " "
     echo -e "${green}Installing cert-manager${clear}"
-    if [ -d Artifacts/cert-manager ]
+    if [ -d $ARTIFACTS_DIR/cert-manager ]
     then
-        helm install cert-manager Artifacts/cert-manager
+        helm install cert-manager $ARTIFACTS_DIR/cert-manager --namespace cert-manager --create-namespace
     else
         helm install cert-manager jetstack/cert-manager --namespace cert-manager --create-namespace --set crds.enabled=true 
     fi
@@ -230,7 +285,7 @@ function install_cert_manager () {
 ### Install rancher ###
 function install_rancher () {
     #download files
-    if [ "$OFFLINE_INSTLLATION"  == "false" ]
+    if [ "$OFFLINE_INSTALLATION"  == "false" ]
     then
         #install helm
         if ! command -v helm &>/dev/null
@@ -251,25 +306,29 @@ function install_rancher () {
         fi
 
         #install chart
-        if [ -e Artifacts/rancher-*.tgz ] || [ -d Artifacts/rancher/ ] # looking for either a zipped chart or an unzipped folder
+        if [ -e $ARTIFACTS_DIR/rancher-*.tgz ] || [ -d $ARTIFACTS_DIR/rancher/ ] # looking for either a zipped chart or an unzipped folder
         then
             echo -e "${green}Rancher Chart found.${clear}"
         else
             echo -e "${green}Fetching Rancher helm chart${clear}"
             helm repo add rancher-stable https://releases.rancher.com/server-charts/stable --force-update
+            helm pull rancher-stable/rancher -d $ARTIFACTS_DIR
         fi
     fi
 
     #install rancher
-    if [ -d Artifacts/rancher ]
+    if [ -d $ARTIFACTS_DIR/rancher ]
     then
-        helm install rancher Artifacts/rancher
+        helm install rancher $ARTIFACTS_DIR/rancher --namespace cattle-system --create-namespace
     else
         echo -e "${green}Please enter the FQDN for the rancher manager:${clear}"
         read -r FQDN
-        helm install rancher --namespace cattle-system rancher-stable/rancher --create-namespace --set bootstrapPassword=admin --set hostname=$FQDN
+        helm install rancher $ARTIFACTS_DIR/rancher-*.tgz --namespace cattle-system --create-namespace --set bootstrapPassword=admin --set hostname=$FQDN
     fi
 }
+
+### Handle flags ### 
+flags "$@"
 
 ### Check if root ### 
 if [ "$EUID" -ne 0 ]
