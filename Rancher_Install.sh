@@ -15,7 +15,6 @@ clear='\033[0m'
 function flags () {
     while [[ $# -gt 0 ]]
     do
-        echo handeling $1
         case $1 in
             -h | --help) 
                 help
