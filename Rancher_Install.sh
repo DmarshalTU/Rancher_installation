@@ -91,6 +91,7 @@ function install_rke2 () {
         do
             if [ ! -e "Artifacts/$file" ] # Do not download if file already exists
             then
+                echo "Downloading $file"
                 curl -L --progress-bar -o "Artifacts/$file" "${RKE2_URL}/${RKE2_VERSION}/$file"
                 if [ $? -ne 0 ] # catch error
                 then
@@ -262,6 +263,12 @@ function install_cert_manager () {
         else
             echo -e "${green}Fetching Cert-manager helm chart${clear}"
             helm repo add jetstack https://charts.jetstack.io --force-update
+            if [ $? ne 0]
+            then
+                echo "Adding jetstack repo failed!"
+                exit 1;
+            fi
+            helm pull jetstack/cert-manager -d $ARTIFACTS_DIR
         fi
     fi
     #check helm installed correctly
@@ -277,7 +284,7 @@ function install_cert_manager () {
     then
         helm install cert-manager $ARTIFACTS_DIR/cert-manager --namespace cert-manager --create-namespace
     else
-        helm install cert-manager jetstack/cert-manager --namespace cert-manager --create-namespace --set crds.enabled=true 
+        helm install cert-manager $ARTIFACTS_DIR/cert-manager-*.tgz --namespace cert-manager --create-namespace --set crds.enabled=true 
     fi
 }
 
@@ -311,6 +318,11 @@ function install_rancher () {
         else
             echo -e "${green}Fetching Rancher helm chart${clear}"
             helm repo add rancher-stable https://releases.rancher.com/server-charts/stable --force-update
+            if [ $? ne 0]
+            then
+                echo "Adding rancher repo failed!"
+                exit 1;
+            fi
             helm pull rancher-stable/rancher -d $ARTIFACTS_DIR
         fi
     fi
