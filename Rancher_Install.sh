@@ -1,9 +1,14 @@
 #! /bin/bash
+set -x
+CERT_MANAGER_VERSION="v1.15.3"
+RANCHER_VERSION="2.8.5"
 RKE2_VERSION="v1.28.12+rke2r1"
 RKE2_URL="https://github.com/rancher/rke2/releases/download"
 RKE2_FILES=( "rke2.linux-amd64.tar.gz" "sha256sum-amd64.txt" "rke2-images.linux-amd64.tar.gz" )
+DOCKER_REPO_MIRROR=""
+QUAY_REPO_MIRROR=""
 OFFLINE_INSTALLATION="false"
-ARTIFACTS_DIR="./Artifacts"
+ARTIFACTS_DIR="$(dirname $0)/Artifacts"
 configSet=0
 KUBECTL_RETRIES=12
 green='\033[0;32m'
@@ -28,9 +33,9 @@ function flags () {
                 then
                     # Case where version is passed like -v 1.2.3 or --version 1.2.3
                     RKE2_VERSION="$2"
-                    shift  # Shift again to skip the actual version value
+                    shift                   # 2 parameters are used, need to shift an extra time.
                 else
-                    echo "The given RKE2 version is invalid."
+                    echo "${red}Error the given RKE2 version is invalid.${clear}"
                     help
                     exit 1
                 fi
@@ -41,22 +46,48 @@ function flags () {
                     ARTIFACTS_DIR="${1#*=}"
                 elif [[ -n "$2" && "$2" != -* ]]; then
                     ARTIFACTS_DIR="${2%/}"  # Remove trailing slashes
-                    shift # Shift again to skip the actual directory value
+                    shift                   # 2 parameters are used, need to shift an extra time.
                 else
-                    echo "The given Artifacts directory location is invalid."
+                    echo "${red}Error the given Artifacts directory location is invalid.${clear}"
                     help
                     exit 1
                 fi
                 
                 # Validate artifact directory path syntax
                 if [[ ! "$ARTIFACTS_DIR" =~ ^[a-zA-Z0-9._/~/-]+$ ]]; then
-                    echo "The given Artifacts directory path contains invalid characters."
+                    echo -e "${red}Error the given Artifacts directory path contains invalid characters.${clear}"
                     help
                     exit 1
                 fi
                 ;;
             --offline)
                 OFFLINE_INSTALLATION="true"
+                ;;
+            --docker-mirror-repo | --docker-mirror-repo=*)
+                if [[ "$1" == *=* ]]; 
+                then
+                    DOCKER_REPO_MIRROR="${1#*=}"
+                elif [[ -n "$2" && "$2" != -* ]]; then
+                    DOCKER_REPO_MIRROR="${2%/}"  # Remove trailing slashes
+                    shift                        # 2 parameters are used, need to shift an extra time.
+                else
+                    echo -e "${red}Error docker repo mirror address given was incorrect.${clear}"
+                    help
+                    exit 1
+                fi
+                ;;
+            --quay-mirror-repo | --quay-mirror-repo=*)
+                if [[ "$1" == *=* ]]; 
+                then
+                    QUAY_REPO_MIRROR="${1#*=}"
+                elif [[ -n "$2" && "$2" != -* ]]; then
+                    QUAY_REPO_MIRROR="${2%/}"   # Remove trailing slashes
+                    shift                       # 2 parameters are used, need to shift an extra time.
+                else
+                    echo -e "${red}Error quay repo mirror address given was incorrect.${clear}"
+                    help
+                    exit 1
+                fi
                 ;;
             *)
                 echo "Invalid option: $1" >&2
@@ -71,10 +102,12 @@ function flags () {
 function help () {
     echo "Usage: $0 [OPTIONS]"
     echo "Options:"
-    echo "-h, --help      Display this help message"
-    echo "-v, --version   Set rke2 version (only used in online mode)"
-    echo "-a, --artifacts Set the 'Artifacts' directory location"
-    echo "--offline       Set the script to run in offline mode"
+    echo "-h, --help                Display this help message"
+    echo "-v, --version             Set rke2 version (only used in online mode)"
+    echo "-a, --artifacts           Set the 'Artifacts' directory location"
+    echo "--offline                 Set the script to run in offline mode"
+    echo "--docker-mirror-repo      Set a mirrored repo address to be used in place of docker.io (used in offline installations)"     
+    echo "--quay-mirror-repo        Set a mirrored repo address to be used in place of quay.io (used in offline installations)"
 }
 
 ### Install RKE2 ###
@@ -174,7 +207,7 @@ function install_rke2 () {
         else
           echo -e "${green}Enter first server's IP\FQDN:${clear}"
           read -r serverIp
-          echo "server: https//${serverIp}:9345" >> /etc/rancher/rke2/config.yaml
+          echo "server: https://${serverIp}:9345" >> /etc/rancher/rke2/config.yaml
           echo -e "${green}Please enter the machine number. This will be appended to its name in the cluster, ex entering '3' will result in the machine name '${clusterName}-master3':${clear}"
           read -r nodenum
           echo -e "${green}Copy the token from the first server, the token can be found in this location:${clear}"
@@ -247,6 +280,7 @@ function install_cert_manager () {
     #download files
     if [ "$OFFLINE_INSTALLATION"  == "false" ]
     then
+        #install helm
         if ! command -v helm &>/dev/null
         then
             echo -e "${green}Helm missing on machine, installing helm 3 now.${clear}"
@@ -257,9 +291,11 @@ function install_cert_manager () {
                 exit 1
             fi
         fi
+        
+        # Fetch chart
         if [ -e $ARTIFACTS_DIR/cert-manager-*.tgz ] || [ -d $ARTIFACTS_DIR/cert-manager ] # looking for either a zipped chart or an unzipped folder
         then
-            echo -e "${green}Cert-manager Chart found.${clear}"
+            echo -e "${green}Cert-manager Chart found.\nPlease make sure the chart version is $CERT_MANAGER_VERSION as other versions are not supported.${clear}"
         else
             echo -e "${green}Fetching Cert-manager helm chart${clear}"
             helm repo add jetstack https://charts.jetstack.io --force-update
@@ -268,23 +304,36 @@ function install_cert_manager () {
                 echo "Adding jetstack repo failed!"
                 exit 1;
             fi
-            helm pull jetstack/cert-manager -d $ARTIFACTS_DIR
+            helm pull jetstack/cert-manager -d $ARTIFACTS_DIR --version $CERT_MANAGER_VERSION
         fi
     fi
+
     #check helm installed correctly
     if ! command -v helm &>/dev/null
     then
         echo -e "${red}Helm missing on machine${clear}"
         exit 1;
     fi
+ 
+    #set mirror repository
+    if [ ! -z "$QUAY_REPO_MIRROR" ]
+    then
+        CERT_MANAGER_CHART_ARGS=" --set image.repository=${QUAY_REPO_MIRROR}/jetstack/cert-manager-controller 
+        --set webhook.image.repository=${QUAY_REPO_MIRROR}/jetstack/cert-manager-webhook 
+        --set cainjector.image.repository=${QUAY_REPO_MIRROR}/jetstack/cert-manager-cainjector 
+        --set acmesolver.image.repository=${QUAY_REPO_MIRROR}/jetstack/cert-manager-acmesolver 
+        --set startupapicheck.image.repository=${QUAY_REPO_MIRROR}/jetstack/cert-manager-startupapicheck"
+    fi
+    
     #install cert-manager
     echo " "
-    echo -e "${green}Installing cert-manager${clear}"
+    echo -e "${green}Cert-manager installation.${clear}"
     if [ -d $ARTIFACTS_DIR/cert-manager ]
     then
-        helm install cert-manager $ARTIFACTS_DIR/cert-manager --namespace cert-manager --create-namespace
+        echo -e "${green}Installing cert-manager from unpacked chart directory.\nPlease note all configurations are taken from values.yaml except for:\n1)namespace (cert-manager).\n2)Quay.io mirrored repo will be substituted if specified.${clear}"
+        eval helm install cert-manager $ARTIFACTS_DIR/cert-manager --namespace cert-manager --create-namespace $CERT_MANAGER_CHART_ARGS
     else
-        helm install cert-manager $ARTIFACTS_DIR/cert-manager-*.tgz --namespace cert-manager --create-namespace --set crds.enabled=true 
+        eval helm install cert-manager $ARTIFACTS_DIR/cert-manager-*.tgz --namespace cert-manager --create-namespace --set crds.enabled=true $CERT_MANAGER_CHART_ARGS
     fi
 }
 
@@ -304,17 +353,11 @@ function install_rancher () {
                 exit 1
             fi
         fi
-        #check helm installed correctly
-        if ! command -v helm &>/dev/null
-        then
-            echo -e "${red}Helm missing on machine${clear}"
-            exit 1;
-        fi
-
-        #install chart
+       
+        #Fetch chart
         if [ -e $ARTIFACTS_DIR/rancher-*.tgz ] || [ -d $ARTIFACTS_DIR/rancher/ ] # looking for either a zipped chart or an unzipped folder
         then
-            echo -e "${green}Rancher Chart found.${clear}"
+            echo -e "${green}Rancher Chart found.\nPlease make sure the chart version is $RANCHER_VERSION as other versions are not supported.${clear}"
         else
             echo -e "${green}Fetching Rancher helm chart${clear}"
             helm repo add rancher-stable https://releases.rancher.com/server-charts/stable --force-update
@@ -323,18 +366,36 @@ function install_rancher () {
                 echo "Adding rancher repo failed!"
                 exit 1;
             fi
-            helm pull rancher-stable/rancher -d $ARTIFACTS_DIR
+            helm pull rancher-stable/rancher -d $ARTIFACTS_DIR --version $RANCHER_VERSION
         fi
     fi
 
+    #check helm installed correctly
+    if ! command -v helm &>/dev/null
+    then
+        echo -e "${red}Helm missing on machine${clear}"
+        exit 1;
+    fi
+
+    #set mirror repository
+    if [ ! -z "$DOCKER_REPO_MIRROR" ]
+    then
+        RANCHER_CHART_ARGS=" --set auditLog.image.repository=$DOCKER_REPO_MIRROR/rancher/mirrored-bci-micro 
+        --set rancherImage=$DOCKER_REPO_MIRROR/rancher/rancher 
+        --set systemDefaultRegistry=$DOCKER_REPO_MIRROR"
+    fi
+
     #install rancher
+    echo " "
+    echo -e "${green}Rancher installation.${clear}"
     if [ -d $ARTIFACTS_DIR/rancher ]
     then
-        helm install rancher $ARTIFACTS_DIR/rancher --namespace cattle-system --create-namespace
+        echo -e "${green}Installing rancher from unpacked chart directory.\nPlease note all configurations are taken from values.yaml except for:\n1)namespace (cattle-system).\n2)useBundledSystemChart (charts catalog will use offline charts in offline installation and visa-versa).\n3)Docker mirrored repo will be substituted if specified.${clear}"
+        eval helm install rancher $ARTIFACTS_DIR/rancher --namespace cattle-system --create-namespace $RANCHER_CHART_ARGS --set useBundledSystemChart=$OFFLINE_INSTALLATION
     else
         echo -e "${green}Please enter the FQDN for the rancher manager:${clear}"
         read -r FQDN
-        helm install rancher $ARTIFACTS_DIR/rancher-*.tgz --namespace cattle-system --create-namespace --set bootstrapPassword=admin --set hostname=$FQDN
+        eval helm install rancher $ARTIFACTS_DIR/rancher-*.tgz --namespace cattle-system --create-namespace --set bootstrapPassword=admin --set hostname=$FQDN $RANCHER_CHART_ARGS useBundledSystemChart=$OFFLINE_INSTALLATION
     fi
 }
 
