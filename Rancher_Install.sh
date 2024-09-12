@@ -1,5 +1,4 @@
 #! /bin/bash
-set -x
 CERT_MANAGER_VERSION="v1.15.3"
 RANCHER_VERSION="2.8.5"
 RKE2_VERSION="v1.28.12+rke2r1"
@@ -231,7 +230,7 @@ function install_rke2 () {
 
     echo " "
     echo -e "${green}Running and installing${clear}"
-    INSTALL_RKE2_ARTIFACT_PATH=$ARTIFACTS_DIR sh rke2_install_script.sh --tls-san $(echo ${tls[@]} | sed 's/ /,/g')
+    INSTALL_RKE2_ARTIFACT_PATH=$ARTIFACTS_DIR sh rke2_install_script.sh --tls-san $(echo ${tls[@]} | sed 's/ /,/g') 2>&1
     if [ $? -ne 0 ]
     then 
         echo -e "${red}rke2 installation failed!${clear}"
@@ -284,7 +283,7 @@ function install_cert_manager () {
         if ! command -v helm &>/dev/null
         then
             echo -e "${green}Helm missing on machine, installing helm 3 now.${clear}"
-            ./helm_install.sh
+            ./helm_install.sh 2>&1
             if [ $? -ne 0 ]
             then 
                 echo -e "${red}Detected an error with helm installation.${clear}"
@@ -346,7 +345,7 @@ function install_rancher () {
         if ! command -v helm &>/dev/null
         then
             echo -e "${green}Helm missing on machine, installing helm 3 now.${clear}"
-            ./helm_install.sh
+            ./helm_install.sh 2>&1
             if [ $? -ne 0 ]
             then 
                 echo -e "${red}Detected an error with helm installation.${clear}"
