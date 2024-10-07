@@ -1,0 +1,5 @@
+rke2-rancher-installer/bin/kubectl filter=lfs diff=lfs merge=lfs -text
+rke2-rancher-installer/bin/node filter=lfs diff=lfs merge=lfs -text
+rke2-rancher-installer/artifacts/rke2/bin/rke2 filter=lfs diff=lfs merge=lfs -text
+rke2-rancher-installer/artifacts/rke2/bin/rke2.exe filter=lfs diff=lfs merge=lfs -text
+rke2-rancher-installer/binaries.tar.gz filter=lfs diff=lfs merge=lfs -text
