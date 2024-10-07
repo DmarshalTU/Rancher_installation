@@ -23,15 +23,16 @@ This package includes:
 
 ## Installation
 
-1. Install Git LFS:
+1. Clone this repository:
    ```
-   git lfs install
+   git clone https://github.com/your-username/rke2-rancher-installer.git
+   cd rke2-rancher-installer
    ```
 
-2. Clone this repository:
+2. Download the binaries from the latest release:
    ```
-   git lfs clone https://github.com/your-username/rke2-rancher-installer.git
-   cd rke2-rancher-installer
+   curl -L https://github.com/your-username/rke2-rancher-installer/releases/latest/download/binaries.tar.gz -o binaries.tar.gz
+   tar -xzvf binaries.tar.gz
    ```
 
 3. Run the start script:
@@ -39,7 +40,7 @@ This package includes:
    ./start.sh
    ```
 
-The start script will automatically extract the binaries if they haven't been extracted yet, and install the necessary dependencies.
+The start script will automatically install the necessary dependencies and run the installer.
 ## Usage
 
 1. Transfer the entire `rke2-rancher-installer` directory to the target isolated environment.
