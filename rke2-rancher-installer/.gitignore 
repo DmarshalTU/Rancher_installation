@@ -1,3 +1,8 @@
 /bin
 /artifacts
 /node_modules
+rke2-rancher-installer/bin/kubectl
+rke2-rancher-installer/bin/node
+rke2-rancher-installer/artifacts/rke2/bin/rke2
+rke2-rancher-installer/artifacts/rke2/bin/rke2.exe
+rke2-rancher-installer/binaries.tar.gz
