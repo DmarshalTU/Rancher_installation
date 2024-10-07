@@ -29,6 +29,18 @@ then
     exit 1
 fi
 
+# Extract node_modules if the archive exists and the directory doesn't
+if [ -f "node_modules.tar.gz" ] && [ ! -d "node_modules" ]; then
+    echo "Extracting node_modules..."
+    tar -xzvf node_modules.tar.gz
+fi
+
+# Only try to install dependencies if node_modules doesn't exist and we're not offline
+if [ ! -d "node_modules" ] && [ -z "$OFFLINE_INSTALL" ]; then
+    echo "Installing dependencies..."
+    npm ci --only=production
+fi
+
 # Compile TypeScript files
 npm run build
 
