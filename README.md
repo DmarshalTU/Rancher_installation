@@ -21,6 +21,26 @@ This package includes:
 6. Cert-Manager Helm chart
 7. All necessary Node.js dependencies (pre-installed in node_modules)
 
+## Installation
+
+1. Clone this repository:
+   ```
+   git clone https://github.com/your-username/rke2-rancher-installer.git
+   cd rke2-rancher-installer
+   ```
+
+2. Extract the binaries and artifacts:
+   ```
+   tar -xzvf binaries.tar.gz
+   ```
+
+3. Run the start script:
+   ```
+   ./start.sh
+   ```
+
+The start script will automatically extract the binaries if they haven't been extracted yet.
+
 ## Usage
 
 1. Transfer the entire `rke2-rancher-installer` directory to the target isolated environment.
